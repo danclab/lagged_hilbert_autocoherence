@@ -180,7 +180,7 @@ def ar_surr(signal, n_shuffles=1000, n_jobs=-1):
     return amp_prod
 
 
-def lagged_hilbert_coherence(signal, freqs, lags, srate, df=None, n_shuffles=100, type='coh', n_jobs=-1, thresh_prctile=95):
+def lagged_hilbert_coherence(signal, freqs, lags, srate, df=None, n_shuffles=1000, type='coh', n_jobs=-1, thresh_prctile=95):
     """
     Compute lagged Hilbert coherence (or phase-locking value or amplitude coherence) for a signal.
 
@@ -219,6 +219,18 @@ def lagged_hilbert_coherence(signal, freqs, lags, srate, df=None, n_shuffles=100
     n_freqs = len(freqs)
     # Number of lags
     n_lags = len(lags)
+
+    # Check that epochs are long enough for requested frequencies and lags - just have to check number of eval pts for
+    # lowest frequency and longest lag
+    min_freq=np.min(freqs)
+    max_lag=np.max(lags)
+    lag_dur_s = np.max([max_lag / min_freq, 1 / srate])
+    min_epoch_len = 2 * lag_dur_s
+    if T<min_epoch_len:
+        raise ValueError('Epoch length must be at least {min_len:.2f}s to evaluate LHC at {min_freq:.2f} Hz and {max_lag:.2f} cycles'.format(
+            min_len=min_epoch_len,
+            min_freq=min_freq,
+            max_lag=max_lag))
 
     # Bandpass filtering using multiplication by a Gaussian kernel
     # in the frequency domain
@@ -260,7 +272,8 @@ def lagged_hilbert_coherence(signal, freqs, lags, srate, df=None, n_shuffles=100
 
         for l_idx, lag in enumerate(lags):
             # Duration of this lag in s
-            lag_dur_s = lag / freq
+            lag_dur_s = np.max([lag / freq, 1/srate])
+
             # Number of evaluations
             n_evals = int(np.floor(T / lag_dur_s))
             # Remaining time
@@ -286,32 +299,32 @@ def lagged_hilbert_coherence(signal, freqs, lags, srate, df=None, n_shuffles=100
 
             if type == 'coh':
                 # Lagged coherence
-                num = np.squeeze(np.sum(amp_prod * np.exp(complex(0, 1) * phase_diff), axis=1))
+                num = np.sum(amp_prod * np.exp(complex(0, 1) * phase_diff), axis=1)
                 f1_pow = np.power(f1, 2)
                 f2_pow = np.power(f2, 2)
-                denom = np.squeeze(np.sqrt(np.sum(np.abs(f1_pow), axis=1) * np.sum(np.abs(f2_pow), axis=1)))
+                denom = np.sqrt(np.sum(np.abs(f1_pow), axis=1) * np.sum(np.abs(f2_pow), axis=1))
 
                 lc = np.abs(num / denom)
                 lc[denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
 
             elif type == 'plv':
                 expected_phase_diff = lag * 2 * math.pi
-                num = np.squeeze(np.sum(np.exp(complex(0, 1) * (expected_phase_diff - phase_diff)), axis=1))
+                num = np.sum(np.exp(complex(0, 1) * (expected_phase_diff - phase_diff)), axis=1)
                 denom = len(eval_pts) - 1
 
                 f1_pow = np.power(f1, 2)
                 f2_pow = np.power(f2, 2)
-                amp_denom = np.squeeze(np.sqrt(np.sum(np.abs(f1_pow), axis=1) * np.sum(np.abs(f2_pow), axis=1)))
+                amp_denom = np.sqrt(np.sum(np.abs(f1_pow), axis=1) * np.sum(np.abs(f2_pow), axis=1))
 
                 lc = np.abs(num / denom)
-                lc[denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
+                lc[amp_denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
 
             elif type == 'amp_coh':
                 # Numerator - sum is over evaluation points
-                num = np.squeeze(np.sum(amp_prod, axis=1))
+                num = np.sum(amp_prod, axis=1)
                 f1_pow = np.power(f1, 2)
                 f2_pow = np.power(f2, 2)
-                denom = np.squeeze(np.sqrt(np.sum(np.abs(f1_pow), axis=1) * np.sum(np.abs(f2_pow), axis=1)))
+                denom = np.sqrt(np.sum(np.abs(f1_pow), axis=1) * np.sum(np.abs(f2_pow), axis=1))
                 lc = num / denom
                 lc[denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
 

@@ -79,15 +79,19 @@ subplot(3,1,2);
 plot(time,s2);
 xlim([time(1) time(end)]);
 subplot(3,1,3);
-plot(time,signal(1,:));
+plot(time,signal(end,:));
 xlim([time(1) time(end)]);
 xlabel('Time (s)');
 
 
 
 
-freqs=linspace(5,100,100);
-lags = .5:.5:10;
+% Evaluate at 2-10 lag cycles
+lags = 1:0.5:10;
+
+% Evaluate at 5-100 Hz
+freqs = 5:1:100;
+
 trial_lcs_hilbert=lagged_hilbert_coherence(signal, freqs, lags, srate);
 
 figure();
@@ -96,7 +100,6 @@ set(gca,'clim',[0 1]);
 colorbar;
 xlabel('Lag (cycles)');
 ylabel('Frequency (Hz)');
-
 
 
 % Generate a simulated signal with just white noise
@@ -124,8 +127,12 @@ xlim([time(1) time(end)]);
 xlabel('Time (s)');
 
 
-freqs=linspace(5,100,100);
-lags = .5:.5:10;
+% Evaluate at 2-10 lag cycles
+lags = 1:0.5:10;
+
+% Evaluate at 5-100 Hz
+freqs = 5:1:100;
+
 trial_lcs_hilbert=lagged_hilbert_coherence(signal, freqs, lags, srate);
 
 figure();

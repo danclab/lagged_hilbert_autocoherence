@@ -398,9 +398,6 @@ ylabel('Frequency (Hz)');
 %% Put it all together
 function [num, denom, lc]=lagged_hilbert_coh_demo(signal, srate, freq, lag, df)
 
-    detrend_ord = 1;
-    signal=detrend(signal, detrend_ord);
-    
     n_pts=length(signal);
     dt=1/srate;
     T = n_pts * dt;

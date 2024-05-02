@@ -3,11 +3,12 @@ import numpy as np
 from fooof import FOOOF
 from fooof.sim.gen import gen_aperiodic, gen_periodic
 from scipy.ndimage import gaussian_filter1d
+from kneed import KneeLocator
 
 from lagged_coherence import lagged_hilbert_coherence
 
 
-def fooofinator(data, fs, freqs, alpha=0.1, lags=np.arange(1.0,2.0,.1), n_jobs=-1):
+def fooofinator(data, fs, freqs, alpha=0.1, lags=np.arange(0.1,2.0,.01), thresh_prctile=95, n_jobs=-1):
     f, psd = scipy.signal.welch(data, fs=fs, window='hann',
                                 nperseg=fs, noverlap=int(fs / 2), nfft=fs * 2, detrend='constant',
                                 return_onesided=True, scaling='density', axis=- 1, average='mean')
@@ -16,12 +17,18 @@ def fooofinator(data, fs, freqs, alpha=0.1, lags=np.arange(1.0,2.0,.1), n_jobs=-
     psd = np.mean(psd[:, f_idx], axis=0)
 
     # Fit the aperiodic component
-    lc_hilbert = lagged_hilbert_coherence(data, f, lags, fs, n_shuffles=100, n_jobs=n_jobs)
+    lc_hilbert = lagged_hilbert_coherence(data, f, lags, fs, n_shuffles=100, thresh_prctile=thresh_prctile, n_jobs=n_jobs)
+
+    med_lc = np.median(np.mean(lc_hilbert, axis=0), axis=0)
+    n_lags = range(len(lags))
+    kneedle = KneeLocator(n_lags, med_lc, curve='convex', direction='decreasing', online=True)
+    elbow_point=kneedle.elbow
+    print('Using lag={} cycles'.format(lags[elbow_point]))
 
     sigma = 1.0
-    lc_smooth = gaussian_filter1d(np.squeeze(np.nanmean(np.nanmean(lc_hilbert, axis=-1), axis=0)), sigma)
-    lc_smooth = lc_smooth - np.min(lc_smooth)
-    lc_smooth = lc_smooth / np.max(lc_smooth)
+
+    lc_smooth = np.mean(lc_hilbert[:, :, elbow_point], axis=0)
+    lc_smooth = gaussian_filter1d(lc_smooth, sigma)
 
     def gen_parameterized_spectrum(freqs, params):
         # Aperiodic component
@@ -47,7 +54,7 @@ def fooofinator(data, fs, freqs, alpha=0.1, lags=np.arange(1.0,2.0,.1), n_jobs=-
         err = np.sqrt(np.sum(np.power(spec - fit_target, 2)))
         cost = np.sum(np.abs(resid[resid < 0]))
 
-        return err+alpha+cost
+        return err+alpha*cost
 
     init_params = [fit_target[0],
                    fit_target[-1] - fit_target[0],
@@ -87,4 +94,4 @@ def fooofinator(data, fs, freqs, alpha=0.1, lags=np.arange(1.0,2.0,.1), n_jobs=-
     fm._calc_r_squared()
     fm._calc_error()
 
-    return fm, lc_smooth, psd
+    return fm, lc_smooth, psd, params[2]
