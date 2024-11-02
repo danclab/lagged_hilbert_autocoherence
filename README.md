@@ -1,5 +1,5 @@
-# lagged_hilbert_coherence
-Lagged Hilbert coherence, phase-locking value, and amplitude coherence
+# Lagged Hilbert autocoherence
+Lagged Hilbert autocoherence, phase-locking value, and amplitude autocoherence
 
 ## Requirements
 python version: joblib, scipy, numpy, statsmodels (>=0.13.5)
