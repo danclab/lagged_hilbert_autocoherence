@@ -92,7 +92,7 @@ lags = 1:0.5:10;
 % Evaluate at 5-100 Hz
 freqs = 5:1:100;
 
-trial_lcs_hilbert=lagged_hilbert_coherence(signal, freqs, lags, srate);
+trial_lcs_hilbert=lagged_hilbert_autocoherence(signal, freqs, lags, srate);
 
 figure();
 contourf(lags, freqs, squeeze(mean(trial_lcs_hilbert,1)), 100,'LineColor','none');
@@ -133,7 +133,7 @@ lags = 1:0.5:10;
 % Evaluate at 5-100 Hz
 freqs = 5:1:100;
 
-trial_lcs_hilbert=lagged_hilbert_coherence(signal, freqs, lags, srate);
+trial_lcs_hilbert=lagged_hilbert_autocoherence(signal, freqs, lags, srate);
 
 figure();
 contourf(lags, freqs, squeeze(mean(trial_lcs_hilbert,1)), 100,'LineColor','none');

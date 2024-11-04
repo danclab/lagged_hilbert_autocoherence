@@ -5,7 +5,7 @@ from fooof.sim.gen import gen_aperiodic, gen_periodic
 from scipy.ndimage import gaussian_filter1d
 from kneed import KneeLocator
 
-from lagged_coherence import lagged_hilbert_coherence
+from lagged_autocoherence import lagged_hilbert_autocoherence
 
 
 def fooofinator(data, fs, freqs, alpha=0.1, lags=np.arange(0.1,2.0,.01), thresh_prctile=95, n_jobs=-1):
@@ -17,7 +17,7 @@ def fooofinator(data, fs, freqs, alpha=0.1, lags=np.arange(0.1,2.0,.01), thresh_
     psd = np.mean(psd[:, f_idx], axis=0)
 
     # Fit the aperiodic component
-    lc_hilbert = lagged_hilbert_coherence(data, f, lags, fs, n_shuffles=100, thresh_prctile=thresh_prctile, n_jobs=n_jobs)
+    lc_hilbert = lagged_hilbert_autocoherence(data, f, lags, fs, n_shuffles=100, thresh_prctile=thresh_prctile, n_jobs=n_jobs)
 
     med_lc = np.median(np.mean(lc_hilbert, axis=0), axis=0)
     n_lags = range(len(lags))

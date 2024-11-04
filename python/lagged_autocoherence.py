@@ -8,9 +8,9 @@ import warnings
 import statsmodels.api as sm
 from mne.filter import filter_data
 
-def lagged_coherence(signal, freqs, lags, srate, win_size=3, type='coh', n_jobs=-1):
+def lagged_fourier_autocoherence(signal, freqs, lags, srate, win_size=3, type='coh', n_jobs=-1):
     """
-    Compute lagged coherence (or phase-locking value or amplitude coherence) for a signal.
+    Compute lagged Fourier autocoherence (or phase-locking value or amplitude autocoherence) for a signal.
 
     Parameters
     ----------
@@ -25,8 +25,8 @@ def lagged_coherence(signal, freqs, lags, srate, win_size=3, type='coh', n_jobs=
     win_size: float
         Size of the time window for each chunk in cycles (default = 3). If None, set to be equal to the evaluated lag.
     type : str
-        Type of output: 'coh' for lagged coherence, 'plv' for lagged phase-locking value, or 'coh' for lagged amplitude
-        coherence.
+        Type of output: 'coh' for lagged autocoherence, 'plv' for lagged phase-locking value, or 'coh' for lagged amplitude
+        autocoherence.
     n_jobs: integer
         The number of parallel jobs to run (default = -1). -1 means using all processors.
 
@@ -180,9 +180,9 @@ def ar_surr(signal, n_shuffles=1000, n_jobs=-1):
     return amp_prod
 
 
-def lagged_hilbert_coherence(signal, freqs, lags, srate, df=None, n_shuffles=1000, type='coh', n_jobs=-1, thresh_prctile=95):
+def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles=1000, type='coh', n_jobs=-1, thresh_prctile=95):
     """
-    Compute lagged Hilbert coherence (or phase-locking value or amplitude coherence) for a signal.
+    Compute lagged Hilbert autocoherence (or phase-locking value or amplitude autocoherence) for a signal.
 
     Parameters
     ----------
@@ -199,8 +199,8 @@ def lagged_hilbert_coherence(signal, freqs, lags, srate, df=None, n_shuffles=100
     n_shuffles: integer
         Number of times to shuffle data
     type : str
-        Type of output: 'coh' for lagged coherence, 'plv' for lagged phase-locking value, or 'coh' for lagged amplitude
-        coherence.
+        Type of output: 'coh' for lagged autocoherence, 'plv' for lagged phase-locking value, or 'coh' for lagged amplitude
+        autocoherence.
     n_jobs: integer
         The number of parallel jobs to run (default = -1). -1 means using all processors.
 
@@ -298,7 +298,7 @@ def lagged_hilbert_coherence(signal, freqs, lags, srate, df=None, n_shuffles=100
             amp_prod = np.abs(f1) * np.abs(f2)
 
             if type == 'coh':
-                # Lagged coherence
+                # Lagged autocoherence
                 num = np.sum(amp_prod * np.exp(complex(0, 1) * phase_diff), axis=1)
                 f1_pow = np.power(f1, 2)
                 f2_pow = np.power(f2, 2)
@@ -342,7 +342,7 @@ def lagged_hilbert_coherence(signal, freqs, lags, srate, df=None, n_shuffles=100
     return lcs
 
 
-def lagged_tr_hilbert_coherence(trial, freqs, srate, n_shuffles=1000, lag=1, df=None):
+def lagged_tr_hilbert_autocoherence(trial, freqs, srate, n_shuffles=1000, lag=1, df=None):
     # Number of frequencies
     n_freqs = len(freqs)
 
