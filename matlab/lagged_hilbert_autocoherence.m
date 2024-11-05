@@ -1,4 +1,4 @@
-function lcs=lagged_hilbert_coherence(signal, freqs, lags, ...
+function lcs=lagged_hilbert_autocoherence(signal, freqs, lags, ...
     srate, varargin)
 
     % Parse inputs
@@ -111,7 +111,7 @@ function lcs=lagged_hilbert_coherence(signal, freqs, lags, ...
 
             lc=0;
             if strcmp(type,'coh')
-                % Lagged coherence
+                % Lagged autocoherence
                 num = squeeze(sum(amp_prod .* exp(1i * phase_diff),2));
                 f1_pow = f1.^2;
                 f2_pow = f2.^2;

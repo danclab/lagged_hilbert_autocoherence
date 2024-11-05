@@ -78,8 +78,8 @@ xlim([time(1) time(end)]);
 xlabel('Time (s)');
 
 
-%% Lagged Hilbert coherence
-% Lagged Hilbert coherence starts with bandpass filtering using
+%% Lagged Hilbertautocoherence
+% Lagged Hilbertautocoherence starts with bandpass filtering using
 % multiplication by a Gaussian kernel in the frequency domain
 
 % Frequencies to evaluate (just to compute desired frequency
@@ -178,7 +178,7 @@ ylabel('Phase');
 
 
 
-% Evaluate lagged coherence at a lag of 3 cycles
+% Evaluate lagged autocoherence at a lag of 3 cycles
 lag=3;
 
 % Duration of this lag in s
@@ -277,7 +277,7 @@ f2 = analytic_signal(eval_pts(2:end) + (0:n_range-1));
 phase_diff = angle(f2) - angle(f1);
 amp_prod = abs(f1) .* abs(f2);
 
-% Lagged coherence
+% Lagged autocoherence
 num = abs(sum(amp_prod .* exp(1i * phase_diff),1));
 f1_pow = f1.^2;
 f2_pow = f2.^2;
@@ -308,7 +308,7 @@ end
 hold off
 legend
 xlabel('Lag (cycles)')
-ylabel('Lagged coherence')
+ylabel('Lagged autocoherence')
 
 
 
@@ -455,7 +455,7 @@ function [num, denom, lc]=lagged_hilbert_coh_demo(signal, srate, freq, lag, df)
     phase_diff = angle(f2) - angle(f1);
     amp_prod = abs(f1) .* abs(f2);
 
-    % Lagged coherence
+    % Lagged autocoherence
     num = abs(sum(amp_prod .* exp(1i * phase_diff),1));
     f1_pow = f1.^2;
     f2_pow = f2.^2;
