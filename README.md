@@ -1,5 +1,10 @@
 # Lagged Hilbert autocoherence
-Lagged Hilbert autocoherence, phase-locking value, and amplitude autocoherence
+Lagged Hilbert autocoherence, phase-locking value, and amplitude autocoherence. Library accompanying 
+the paper Zhang et al. (2024) "Multi-scale parameterization of neural rhythmicity with lagged Hilbert 
+autocoherence"
+
+<https://www.biorxiv.org/content/10.1101/2024.12.05.627017v2.abstract>
+
 
 ## Requirements
 python version: joblib, scipy, numpy, statsmodels (>=0.13.5)
