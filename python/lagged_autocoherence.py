@@ -136,28 +136,76 @@ def lagged_fourier_autocoherence(signal, freqs, lags, srate, win_size=3, type='c
     return lcs
 
 
-def ar_surr(signal, n_shuffles=1000, n_jobs=-1):
+def ar_surr(signal, n_shuffles=1000, method="arma", n_jobs=-1):
+    """
+    Create surrogate data by modifying the structure of the input signals.
+    
+    Parameters
+    ----------
+    signal: ndarray
+        The input signal, shape (n_trials, n_pts).
+    n_shuffles: integer (default 1000)
+        Number of times to shuffle data
+    method: str (default "arma")
+        Type of method used to create surrogate date:
+        'arma' for signals with shuffled amplitude coefficients, or
+        'phase' for signals with shuffled phase coefficients.
+    n_jobs: integer (default -1)
+        The number of parallel jobs to run. -1 means using all processors.
+
+    Returns
+    -------
+    signal_surr: ndarray
+        The surrogate signal, shape (n_trials, n_pts).
+    """
+
+    # Number of trials.
     if len(signal.shape)==1:
         n_trials=1
     else:
         n_trials = signal.shape[0]
+    
+    # Number of time points.
     n_pts = signal.shape[-1]
 
+    # Data shuffling.
     def sim_data(i):
-        # Estimate an AR model
-        mdl_order = (1, 0, 0)
-        sim_signal=signal
-        if len(signal.shape)>1:
-            sim_signal=signal[i,:]
-        mdl = sm.tsa.ARIMA(sim_signal, order=mdl_order)
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            result = mdl.fit()
-            # Make a generative model using the AR parameters
-            ar_process = sm.tsa.ArmaProcess.from_estimation(result)
-            # Simulate a bunch of time-courses from the model
-            return ar_process.generate_sample((n_shuffles, n_pts), scale=result.resid.std(), axis=1)
 
+        sim_signal = signal
+        if len(signal.shape) > 1:
+            sim_signal = signal[i,:]
+        
+        if method == "arma":
+            # Estimate an AR model
+            mdl_order = (1, 0, 0)
+            
+            mdl = sm.tsa.ARIMA(sim_signal, order=mdl_order)
+            
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                
+                result = mdl.fit()
+                
+                # Make a generative model using the AR parameters.
+                ar_process = sm.tsa.ArmaProcess.from_estimation(result)
+                
+                # Simulate a bunch of time-courses from the model.
+                return ar_process.generate_sample((n_shuffles, n_pts), scale=result.resid.std(), axis=1)
+        
+        elif method == "phase":
+            # Compute FFT.
+            sur_fft = np.fft.rfft(sim_signal)
+
+            # Generate random phases in [0, 2*pi].
+            phases = np.random.uniform(low=0, high=2*np.pi, size=(n_shuffles, sur_fft.shape[0]))
+
+            # Add random phases to data.
+            sur_fft = np.abs(sur_fft) * np.exp(1j * phases)
+
+            # Calculate IFFT.
+            return np.real(np.fft.irfft(sur_fft, n=len(sim_signal)))
+
+    # Run in parallel to speed up computations.
     x_sim = Parallel(
         n_jobs=n_jobs
     )(delayed(sim_data)(i) for i in range(n_trials))
@@ -167,12 +215,14 @@ def ar_surr(signal, n_shuffles=1000, n_jobs=-1):
     pad = np.zeros(x_sim.shape)
 
     padd_rand_signal = np.dstack([pad, x_sim, pad])
+    
     # Get analytic signal (phase and amplitude)
     analytic_rand_signal = hilbert(padd_rand_signal, N=None)[:,:,n_pts:2 * n_pts]
 
-    # Analytic signal at n=0...-1
+    # Analytic signal at n = 0, ..., -1
     f1 = analytic_rand_signal[:,:,0:-1]
-    # Analytic signal at n=1,...
+    
+    # Analytic signal at n = 1, ...
     f2 = analytic_rand_signal[:,:,1:]
 
     amp_prod = np.abs(f1) * np.abs(f2)
@@ -180,7 +230,8 @@ def ar_surr(signal, n_shuffles=1000, n_jobs=-1):
     return amp_prod
 
 
-def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles=1000, type='coh', n_jobs=-1, thresh_prctile=95):
+def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles=1000, type='coh',
+                                    thresh_prctile=95, surr_method="arma", surr_data=None, n_jobs=-1):
     """
     Compute lagged Hilbert autocoherence (or phase-locking value or amplitude autocoherence) for a signal.
 
@@ -199,8 +250,17 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
     n_shuffles: integer
         Number of times to shuffle data
     type : str
-        Type of output: 'coh' for lagged autocoherence, 'plv' for lagged phase-locking value, or 'coh' for lagged amplitude
+        Type of output: 'coh' for lagged autocoherence, 'plv' for lagged phase-locking value, or 'amp_coh' for lagged amplitude
         autocoherence.
+    thresh_prctile: integer or None
+        Percentile used to compute threshold of statistical significance based on surrogate data.
+        If None no surrogate data is created and no threshold is applied.
+    surr_method: str (default "arma")
+        Type of method used to create surrogate date:
+        'arma' for signals with shuffled amplitude coefficients, or
+        'phase' for signals with shuffled phase coefficients.
+    surr_data: None or ndarray (default "None")
+        Surrogate data are not generated if provided by the user.
     n_jobs: integer
         The number of parallel jobs to run (default = -1). -1 means using all processors.
 
@@ -242,9 +302,24 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
 
     # Compute threshold as 5th percentile of shuffled amplitude
     # products
-    amp_prods = ar_surr(filtered_signal, n_shuffles=n_shuffles, n_jobs=n_jobs)
-    amp_prods = np.mean(amp_prods, axis=-1)
-    thresh = np.percentile(amp_prods, thresh_prctile, axis=1)
+    if thresh_prctile != None:
+        if surr_data is None:
+            amp_prods = ar_surr(filtered_signal, n_shuffles=n_shuffles, method=surr_method, n_jobs=n_jobs)
+            amp_prods = np.mean(amp_prods, axis=-1)
+        else:
+            n_dim = len(surr_data.shape)
+            if n_dim != 3:
+                raise ValueError("Expected n dim of surrogate data is 3, but {} provided instead.".format(ndim))
+            amp_prods = np.mean(surr_data, axis=-1)
+        thresh = np.percentile(amp_prods, thresh_prctile, axis=1)
+    else:
+        if type == 'coh':
+            type_str = "lagged Hilbert autocoherence"
+        elif type == 'plv':
+            type_str = "phase-locking value"
+        elif type == 'amp_coh':
+            type_str = "lagged amplitude autocoherence"
+        print("Computing {} without surrogate analysis and thresholding.".format(type_str))
 
     padd_signal = np.hstack([np.zeros((n_trials, n_pts)), signal, np.zeros((n_trials, n_pts))])
     signal_fft = np.fft.rfft(padd_signal, axis=-1)
@@ -305,7 +380,9 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
                 denom = np.sqrt(np.sum(np.abs(f1_pow), axis=1) * np.sum(np.abs(f2_pow), axis=1))
 
                 lc = np.abs(num / denom)
-                lc[denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
+
+                if thresh_prctile != None:
+                    lc[denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
 
             elif type == 'plv':
                 expected_phase_diff = lag * 2 * math.pi
@@ -317,7 +394,9 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
                 amp_denom = np.sqrt(np.sum(np.abs(f1_pow), axis=1) * np.sum(np.abs(f2_pow), axis=1))
 
                 lc = np.abs(num / denom)
-                lc[amp_denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
+
+                if thresh_prctile != None:
+                    lc[amp_denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
 
             elif type == 'amp_coh':
                 # Numerator - sum is over evaluation points
@@ -326,7 +405,9 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
                 f2_pow = np.power(f2, 2)
                 denom = np.sqrt(np.sum(np.abs(f1_pow), axis=1) * np.sum(np.abs(f2_pow), axis=1))
                 lc = num / denom
-                lc[denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
+
+                if thresh_prctile != None:
+                    lc[denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
 
             # Average over the time points in between evaluation points
             f_lcs[:, l_idx] = np.mean(lc, axis=-1)
