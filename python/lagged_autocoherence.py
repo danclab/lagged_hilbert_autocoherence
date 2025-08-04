@@ -136,102 +136,66 @@ def lagged_fourier_autocoherence(signal, freqs, lags, srate, win_size=3, type='c
     return lcs
 
 
-def ar_surr(signal, n_shuffles=1000, method="arma", n_jobs=-1):
+def generate_surrogate(signal, n_shuffles=1000, method="phase", n_jobs=-1):
     """
-    Create surrogate data by modifying the structure of the input signals.
-    
+    Generate per-trial surrogate amplitude products via ARMA or phase randomization.
+
     Parameters
     ----------
-    signal: ndarray
-        The input signal, shape (n_trials, n_pts).
-    n_shuffles: integer (default 1000)
-        Number of times to shuffle data
-    method: str (default "arma")
-        Type of method used to create surrogate date:
-        'arma' for signals with shuffled amplitude coefficients, or
-        'phase' for signals with shuffled phase coefficients.
-    n_jobs: integer (default -1)
-        The number of parallel jobs to run. -1 means using all processors.
+    signal : ndarray
+        Input signal, shape (n_trials, n_pts).
+    n_shuffles : int
+        Number of surrogate realizations per trial.
+    method : str
+        'arma' or 'phase'.
+    n_jobs : int
+        Number of parallel workers.
 
     Returns
     -------
-    signal_surr: ndarray
-        The surrogate signal, shape (n_trials, n_pts).
+    amp_prod : ndarray
+        Shape: (n_trials, n_shuffles, n_pts - 1)
     """
 
-    # Number of trials.
-    if len(signal.shape)==1:
-        n_trials=1
-    else:
-        n_trials = signal.shape[0]
-    
-    # Number of time points.
-    n_pts = signal.shape[-1]
+    signal = np.atleast_2d(signal)
+    n_trials, n_pts = signal.shape
 
-    # Data shuffling.
-    def sim_data(i):
-
-        sim_signal = signal
-        if len(signal.shape) > 1:
-            sim_signal = signal[i,:]
-        
+    def generate_surrogate_trace(trial):
         if method == "arma":
-            # Estimate an AR model
-            mdl_order = (1, 0, 0)
-            
-            mdl = sm.tsa.ARIMA(sim_signal, order=mdl_order)
-            
+            mdl = sm.tsa.ARIMA(trial, order=(1, 0, 0))
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
-                
                 result = mdl.fit()
-                
-                # Make a generative model using the AR parameters.
                 ar_process = sm.tsa.ArmaProcess.from_estimation(result)
-                
-                # Simulate a bunch of time-courses from the model.
-                return ar_process.generate_sample((n_shuffles, n_pts), scale=result.resid.std(), axis=1)
-        
+                return ar_process.generate_sample(nsample=n_pts, scale=result.resid.std())
+
         elif method == "phase":
-            # Compute FFT.
-            sur_fft = np.fft.rfft(sim_signal)
+            fft = np.fft.rfft(trial)
+            amp = np.abs(fft)
+            rand_phase = np.exp(1j * np.random.uniform(0, 2 * np.pi, size=fft.shape))
+            return np.fft.irfft(amp * rand_phase, n=n_pts)
 
-            # Generate random phases in [0, 2*pi].
-            phases = np.random.uniform(low=0, high=2*np.pi, size=(n_shuffles, sur_fft.shape[0]))
+        else:
+            raise ValueError(f"Unknown method: {method}")
 
-            # Add random phases to data.
-            sur_fft = np.abs(sur_fft) * np.exp(1j * phases)
+    def sim_per_trial(trial_idx):
+        trial = signal[trial_idx]
+        return np.stack([
+            np.abs(hilbert(s := generate_surrogate_trace(trial)))[:-1] *
+            np.abs(hilbert(s))[1:]
+            for _ in range(n_shuffles)
+        ], axis=0)  # shape: (n_shuffles, n_pts - 1)
 
-            # Calculate IFFT.
-            return np.real(np.fft.irfft(sur_fft, n=len(sim_signal)))
+    amp_prod = Parallel(n_jobs=n_jobs)(
+        delayed(sim_per_trial)(i) for i in range(n_trials)
+    )
 
-    # Run in parallel to speed up computations.
-    x_sim = Parallel(
-        n_jobs=n_jobs
-    )(delayed(sim_data)(i) for i in range(n_trials))
+    return np.stack(amp_prod, axis=0)  # shape: (n_trials, n_shuffles, n_pts - 1)
 
-    x_sim = np.array(x_sim)
-
-    pad = np.zeros(x_sim.shape)
-
-    padd_rand_signal = np.dstack([pad, x_sim, pad])
-    
-    # Get analytic signal (phase and amplitude)
-    analytic_rand_signal = hilbert(padd_rand_signal, N=None)[:,:,n_pts:2 * n_pts]
-
-    # Analytic signal at n = 0, ..., -1
-    f1 = analytic_rand_signal[:,:,0:-1]
-    
-    # Analytic signal at n = 1, ...
-    f2 = analytic_rand_signal[:,:,1:]
-
-    amp_prod = np.abs(f1) * np.abs(f2)
-
-    return amp_prod
 
 
 def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles=1000, type='coh',
-                                    thresh_prctile=95, surr_method="arma", surr_data=None, n_jobs=-1):
+                                 thresh_prctile=95, surr_method="phase", surr_data=None, n_jobs=-1):
     """
     Compute lagged Hilbert autocoherence (or phase-locking value or amplitude autocoherence) for a signal.
 
@@ -260,7 +224,7 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
         'arma' for signals with shuffled amplitude coefficients, or
         'phase' for signals with shuffled phase coefficients.
     surr_data: None or ndarray (default "None")
-        Surrogate data are not generated if provided by the user.
+        Surrogate data are not generated if provided by the user (trials x shuffles).
     n_jobs: integer
         The number of parallel jobs to run (default = -1). -1 means using all processors.
 
@@ -292,26 +256,24 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
             min_freq=min_freq,
             max_lag=max_lag))
 
-    # Bandpass filtering using multiplication by a Gaussian kernel
-    # in the frequency domain
     # Frequency resolution
     if df is None:
         df = np.diff(freqs)[0]
-
-    filtered_signal = filter_data(signal, srate, freqs[0], freqs[-1], verbose=False)
 
     # Compute threshold as 5th percentile of shuffled amplitude
     # products
     if thresh_prctile != None:
         if surr_data is None:
-            amp_prods = ar_surr(filtered_signal, n_shuffles=n_shuffles, method=surr_method, n_jobs=n_jobs)
-            amp_prods = np.mean(amp_prods, axis=-1)
+            filtered_signal = filter_data(signal, srate, freqs[0], freqs[-1], verbose=False)
+            surr_data = generate_surrogate(filtered_signal, n_shuffles=n_shuffles,
+                                           method=surr_method, n_jobs=n_jobs)
+            # Average over time dimension
+            surr_data = np.mean(surr_data, axis=-1)
         else:
             n_dim = len(surr_data.shape)
-            if n_dim != 3:
-                raise ValueError("Expected n dim of surrogate data is 3, but {} provided instead.".format(ndim))
-            amp_prods = np.mean(surr_data, axis=-1)
-        thresh = np.percentile(amp_prods, thresh_prctile, axis=1)
+            if n_dim != 2:
+                raise ValueError("Expected n dim of surrogate data is 2 (trials x shuffles), but {} provided instead.".format(n_dim))
+        thresh = np.percentile(surr_data, thresh_prctile, axis=-1)
     else:
         if type == 'coh':
             type_str = "lagged Hilbert autocoherence"
@@ -330,6 +292,9 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
         freq = freqs[f_idx]
 
         f_lcs = np.zeros((n_trials, n_lags))
+
+        # Bandpass filtering using multiplication by a Gaussian kernel
+        # in the frequency domain
 
         # Gaussian kernel centered on frequency with width defined
         # by requested frequency resolution
@@ -396,7 +361,7 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
                 lc = np.abs(num / denom)
 
                 if thresh_prctile != None:
-                    lc[amp_denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
+                    lc[denom<np.tile(thresh, (lc.shape[1], 1)).T]=0
 
             elif type == 'amp_coh':
                 # Numerator - sum is over evaluation points
@@ -437,7 +402,7 @@ def lagged_tr_hilbert_autocoherence(trial, freqs, srate, n_shuffles=1000, lag=1,
         df = np.diff(freqs)[0]
 
     filtered_signal = filter_data(trial, srate, freqs[0], freqs[-1], verbose=False)
-    amp_prods = ar_surr(filtered_signal, n_shuffles=n_shuffles, n_jobs=-1)
+    amp_prods = generate_surrogate(filtered_signal, n_shuffles=n_shuffles, n_jobs=-1)
     thresh = np.percentile(amp_prods[:], 5)
 
     padd_signal = np.hstack([np.zeros((n_pts)), trial, np.zeros((n_pts))])
