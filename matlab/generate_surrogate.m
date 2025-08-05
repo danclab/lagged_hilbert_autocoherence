@@ -25,7 +25,7 @@ amp_prods = zeros(n_trials, n_shuffles, n_pts - 1);
 parfor i = 1:n_trials
     x = signal(i, :);
 
-    % Local variable to avoid parfor sliced variable warnings
+    % Local variable for storing surrogates
     trial_amp_prods = zeros(n_shuffles, n_pts - 1);
 
     switch lower(method)
@@ -44,7 +44,7 @@ parfor i = 1:n_trials
             % Solve for AR coefficients
             arCoeff = R \ rho;
 
-            % Simulate surrogates
+            % Simulate surrogates one-by-one
             for j = 1:n_shuffles
                 x_sim = zeros(1, n_pts);
                 x_sim(1:p) = x(1:p);
@@ -60,22 +60,23 @@ parfor i = 1:n_trials
             end
 
         case 'phase'
+            % FFT of original
+            fft_x = fft(x);
+            amp = abs(fft_x(1:floor(n_pts/2) + 1));
+
+            % Random phases for all shuffles
+            rand_phase = exp(1i * (2 * pi * rand(n_shuffles, numel(amp))));
+
+            % Apply to amplitude spectrum
+            surrogates = zeros(n_shuffles, n_pts);
             for j = 1:n_shuffles
-                % FFT
-                fft_x = fft(x, [], 2);
-                amp = abs(fft_x(1:floor(n_pts/2) + 1));
-
-                % Random phase
-                rand_phase = exp(1i * (2 * pi * rand(size(amp))));
-
-                % Apply random phase while keeping amplitude
-                surrogate_trace = irfft(amp .* rand_phase, n_pts, 2);
-
-                % Hilbert amplitude product
-                analytic_rand_signal = hilbert(surrogate_trace);
-                trial_amp_prods(j, :) = abs(analytic_rand_signal(1:end-1)) .* ...
-                                        abs(analytic_rand_signal(2:end));
+                surrogates(j, :) = irfft(amp .* rand_phase(j, :), n_pts, 2);
             end
+
+            % Hilbert amplitude products in vectorized form
+            analytic_rand_signal = hilbert(surrogates')';
+            trial_amp_prods = abs(analytic_rand_signal(:, 1:end-1)) .* ...
+                              abs(analytic_rand_signal(:, 2:end));
 
         otherwise
             error('Unknown method: %s', method);
