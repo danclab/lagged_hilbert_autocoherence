@@ -364,7 +364,7 @@ ylabel('Frequency (Hz)');
 
 % Compute threshold as 95th percentile of shuffled amplitude products
 n_shuffles=1000;
-amp_prods=ar_surr(signal, n_shuffles);
+amp_prods=generate_surrogate(signal, n_shuffles);
 threshold = prctile(amp_prods, 95);
 
 % Evaluate at 2-10 lag cycles
