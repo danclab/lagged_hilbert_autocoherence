@@ -1,12 +1,6 @@
 library('lme4')
 library('car')
 library('emmeans')
-library('ggplot2')
-
-library('lme4')
-library('car')
-library('emmeans')
-library('ggplot2')
 
 # Redirect output to file
 sink("../output/explicit-implicit_lmm_results.txt")
