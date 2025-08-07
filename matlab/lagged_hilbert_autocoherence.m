@@ -3,7 +3,7 @@ function lcs=lagged_hilbert_autocoherence(signal, freqs, lags, ...
 
     % Parse inputs
     defaults = struct('df', -1, 'n_shuffles', 1000, 'type', 'coh',...
-        'thresh_prctile', 95, 'surr_method', 'phase');  %define default values
+        'thresh_prctile', 95);  %define default values
     params = struct(varargin{:});
     for f = fieldnames(defaults)',
         if ~isfield(params, f{1}),
@@ -42,8 +42,7 @@ function lcs=lagged_hilbert_autocoherence(signal, freqs, lags, ...
         
     filtered_signal = bandpass(signal, [freqs(1) freqs(end)], srate);
     
-    amp_prods=generate_surrogate(filtered_signal, params.n_shuffles,...
-        params.surr_method);
+    amp_prods=generate_surrogate(filtered_signal, params.n_shuffles);
     amp_prods=mean(amp_prods,3);
     thresh = prctile(amp_prods, params.thresh_prctile, 2);
 

@@ -86,12 +86,12 @@ idx = (freqs >= f_min) & (freqs <= f_max)
 freqs = freqs[idx]
 psd = psd[:, idx]
 
-lhc = lagged_hilbert_autocoherence(signal, freqs, lags, srate, surr_method='phase', n_jobs=-1)
+lhc = lagged_hilbert_autocoherence(signal, freqs, lags, srate, n_jobs=-1)
 
 # --- Surrogate-based thresholds ---
 filtered_signal = filter_data(signal, srate, freqs[0], freqs[-1], verbose=False)
 
-surr_data = generate_surrogate(filtered_signal, n_shuffles=1000, method='phase', n_jobs=-1)
+surr_data = generate_surrogate(filtered_signal, n_shuffles=1000, n_jobs=-1)
 
 joint_energy_surrogates = np.mean(surr_data, axis=-1)
 thresholds = np.percentile(joint_energy_surrogates, 95, axis=-1)

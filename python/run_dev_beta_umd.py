@@ -79,7 +79,7 @@ for age in ages:
                                     ch_lfc = lagged_fourier_autocoherence(data[trial_idx, c_chan_idx, :], freqs, lags, fs,
                                                                           n_jobs=-1)
                                     ch_lhc = lagged_hilbert_autocoherence(data[trial_idx, c_chan_idx, :], freqs, lags, fs,
-                                                                          surr_method='phase', n_jobs=-1)
+                                                                          n_jobs=-1)
 
                                     psd.append(ch_psd)
                                     lfc.append(ch_lfc)

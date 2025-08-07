@@ -92,7 +92,7 @@ for snr in snrs:
 
     filtered_signal = filter_data(signal, srate, freqs[0], freqs[-1], verbose=False)
 
-    surr_data = generate_surrogate(filtered_signal, n_shuffles=1000, method='phase', n_jobs=-1)
+    surr_data = generate_surrogate(filtered_signal, n_shuffles=1000, n_jobs=-1)
 
     joint_energy_surrogates = np.mean(surr_data, axis=-1)
     thresholds = np.percentile(joint_energy_surrogates, 95, axis=-1)

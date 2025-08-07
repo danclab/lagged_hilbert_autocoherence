@@ -92,7 +92,7 @@ for snr_idx, snr in enumerate(snrs):
 
         lfc[snr_idx, f_idx, :, :, :] = lagged_fourier_autocoherence(signal, freqs, lags, srate)
 
-        lhc[snr_idx, f_idx, :, :, :] = lagged_hilbert_autocoherence(signal, freqs, lags, srate, surr_method='phase', n_jobs=-1)
+        lhc[snr_idx, f_idx, :, :, :] = lagged_hilbert_autocoherence(signal, freqs, lags, srate, n_jobs=-1)
 
 np.savez('../output/sims/burst_num/sim_results',
          snrs=snrs,

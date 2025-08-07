@@ -56,7 +56,7 @@ for sub_idx in range(len(sub_paths)):
                     ch_psd = np.mean(ch_psd[:, f_idx], axis=0)
 
                     ch_lfc = lagged_fourier_autocoherence(data, freqs, lags, fs, n_jobs=-1)
-                    ch_lhc = lagged_hilbert_autocoherence(data, freqs, lags, fs, surr_method='phase', n_jobs=-1)
+                    ch_lhc = lagged_hilbert_autocoherence(data, freqs, lags, fs, n_jobs=-1)
 
                     psd.append(ch_psd)
                     lfc.append(ch_lfc)

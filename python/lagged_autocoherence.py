@@ -1,11 +1,8 @@
 import math
 import numpy as np
-import numpy.random
 from joblib import Parallel, delayed
 from scipy.signal import hilbert
 from scipy.signal.windows import hann
-import warnings
-import statsmodels.api as sm
 from mne.filter import filter_data
 
 def lagged_fourier_autocoherence(signal, freqs, lags, srate, win_size=3, type='coh', n_jobs=-1):
@@ -136,7 +133,7 @@ def lagged_fourier_autocoherence(signal, freqs, lags, srate, win_size=3, type='c
     return lcs
 
 
-def generate_surrogate(signal, n_shuffles=1000, method="phase", n_jobs=-1):
+def generate_surrogate(signal, n_shuffles=1000, n_jobs=-1):
     """
     Generate per-trial surrogate amplitude products via ARMA or phase randomization.
 
@@ -146,8 +143,6 @@ def generate_surrogate(signal, n_shuffles=1000, method="phase", n_jobs=-1):
         Input signal, shape (n_trials, n_pts).
     n_shuffles : int
         Number of surrogate realizations per trial.
-    method : str
-        'arma' or 'phase'.
     n_jobs : int
         Number of parallel workers.
 
@@ -161,22 +156,10 @@ def generate_surrogate(signal, n_shuffles=1000, method="phase", n_jobs=-1):
     n_trials, n_pts = signal.shape
 
     def generate_surrogate_trace(trial):
-        if method == "arma":
-            mdl = sm.tsa.ARIMA(trial, order=(1, 0, 0))
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                result = mdl.fit()
-                ar_process = sm.tsa.ArmaProcess.from_estimation(result)
-                return ar_process.generate_sample(nsample=n_pts, scale=result.resid.std())
-
-        elif method == "phase":
-            fft = np.fft.rfft(trial)
-            amp = np.abs(fft)
-            rand_phase = np.exp(1j * np.random.uniform(0, 2 * np.pi, size=fft.shape))
-            return np.fft.irfft(amp * rand_phase, n=n_pts)
-
-        else:
-            raise ValueError(f"Unknown method: {method}")
+        fft = np.fft.rfft(trial)
+        amp = np.abs(fft)
+        rand_phase = np.exp(1j * np.random.uniform(0, 2 * np.pi, size=fft.shape))
+        return np.fft.irfft(amp * rand_phase, n=n_pts)
 
     def sim_per_trial(trial_idx):
         trial = signal[trial_idx]
@@ -195,7 +178,7 @@ def generate_surrogate(signal, n_shuffles=1000, method="phase", n_jobs=-1):
 
 
 def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles=1000, type='coh',
-                                 thresh_prctile=95, surr_method="phase", surr_data=None, n_jobs=-1):
+                                 thresh_prctile=95, surr_data=None, n_jobs=-1):
     """
     Compute lagged Hilbert autocoherence (or phase-locking value or amplitude autocoherence) for a signal.
 
@@ -219,10 +202,6 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
     thresh_prctile: integer or None
         Percentile used to compute threshold of statistical significance based on surrogate data.
         If None no surrogate data is created and no threshold is applied.
-    surr_method: str (default "arma")
-        Type of method used to create surrogate date:
-        'arma' for signals with shuffled amplitude coefficients, or
-        'phase' for signals with shuffled phase coefficients.
     surr_data: None or ndarray (default "None")
         Surrogate data are not generated if provided by the user (trials x shuffles).
     n_jobs: integer
@@ -266,7 +245,7 @@ def lagged_hilbert_autocoherence(signal, freqs, lags, srate, df=None, n_shuffles
         if surr_data is None:
             filtered_signal = filter_data(signal, srate, freqs[0], freqs[-1], verbose=False)
             surr_data = generate_surrogate(filtered_signal, n_shuffles=n_shuffles,
-                                           method=surr_method, n_jobs=n_jobs)
+                                           n_jobs=n_jobs)
             # Average over time dimension
             surr_data = np.mean(surr_data, axis=-1)
         else:
