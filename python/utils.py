@@ -1,4 +1,31 @@
+from pathlib import Path
+
 import numpy as np
+
+
+def check_many(multiple, target, func=None):
+    """
+    Checks for a presence of strings in a target strings.
+
+    Parameters:
+    multiple (list): strings to be found in target string
+    target (str): target string
+    func (str): "all" or "any", use the fuction to search for any or all strings in the filename.
+
+    Notes:
+    - this function works really well with if statement for list comprehension
+    """
+    func_dict = {
+        "all": all, "any": any
+    }
+    if func in func_dict.keys():
+        use_func = func_dict[func]
+    elif func == None:
+        raise ValueError("pick function 'all' or 'any'")
+    check_ = []
+    for i in multiple:
+        check_.append(i in target)
+    return use_func(check_)
 
 
 def get_files(target_path, suffix, strings=[""], prefix=None, check="all", depth="all"):
