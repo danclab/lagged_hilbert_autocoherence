@@ -25,7 +25,7 @@ matlab version: parallel processing toolbox, signal processing toolbox
 - irfft.m: Inverse Fourier transform of real signal
 - hilbert.m: Hilbert transform
 
-# Analyses from Zhang et al. (2024)
+# Analyses from Zhang et al. (2025)
 - python/run_sims_0_surrogate_comparison.py: Compare phase-shuffled and ARMA surrogates
 - python/run_sims_1_joint_amp_norm_factor.py: Investigate joint amplitude normalization factor inflation
 - python/run_sims_2_oscillation.py: Run oscillation simulations
